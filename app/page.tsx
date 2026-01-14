@@ -1,74 +1,92 @@
 "use client"
-import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
-import { Shield, Zap, Globe, ArrowRight } from 'lucide-react';
+import FounderProfile from '../components/interface/FounderProfile';
 import { useSovereignVoice } from '../hooks/useSovereignVoice';
-import MasterDashboard from '../components/interface/MasterDashboard'; // We will move your old page here
 
-export default function EntryPoint() {
-  const supabase = createClientComponentClient();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function InfinityOS() {
+  const supabase = useMemo(() => createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  ), []);
+
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [input, setInput] = useState('');
+  const [swarm, setSwarm] = useState([]);
+  const [isThinking, setIsThinking] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { speak } = useSovereignVoice();
 
   useEffect(() => {
-    const checkUser = async () => {
+    setMounted(true);
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-      setLoading(false);
+      if (session) { 
+        setUser(session.user); 
+      } else {
+        router.push('/login');
+      }
     };
-    checkUser();
-  }, []);
+    init();
+    const i = setInterval(() => { if(!isThinking) inputRef.current?.focus() }, 1000);
+    return () => clearInterval(i);
+  }, [supabase, router, isThinking]);
 
-  if (loading) return <div className="bg-black min-h-screen" />;
+  const handleCommand = async (e: any) => {
+    if (e.key !== 'Enter' || !input) return;
+    const cmd = input; setInput(''); setIsThinking(true);
+    speak("AetherStack Mind acknowledging directive.");
+    
+    try {
+      const res = await fetch('/api/alpha/command', {
+        method: 'POST',
+        body: JSON.stringify({ command: cmd })
+      });
+      const data = await res.json();
+      setSwarm((prev: any) => [{ agent: "INFINITY", msg: data.output || "Processed" }, ...prev].slice(0, 5));
+    } catch (err) { console.error("Link Stalled."); }
+    setIsThinking(false);
+  };
 
-  // IF LOGGED IN: Show the Sovereign Terminal
-  if (user) return <MasterDashboard />;
+  if (!mounted || !user) return <div className="bg-black min-h-screen" />;
 
-  // IF PUBLIC: Show the Luxury Advertisement Page
   return (
-    <div className="min-h-screen bg-black text-white font-mono flex flex-col items-center justify-center p-10 overflow-hidden relative">
-      {/* Background Grid */}
-      <div className="fixed inset-0 opacity-10 bg-[url('/icon-512.png')] bg-no-repeat bg-center bg-contain mix-blend-screen grayscale" />
-      
-      <motion_div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 text-center space-y-8 max-w-3xl">
-        <img src="/logo-full.png" alt="Logo" className="h-16 mx-auto mb-12 drop-shadow-[0_0_30px_rgba(0,210,255,0.3)]" />
-        
-        <h2 className="text-sm tracking-[0.8em] text-cyan-500 font-black uppercase">The World’s First Sovereign AI OS</h2>
-        
-        <p className="text-zinc-500 text-lg leading-relaxed font-light italic">
-          "You are not using AI—you are entering a sovereign intelligence network designed to amplify human thought."
-        </p>
+    <div className="min-h-screen bg-black text-white font-mono p-10 flex flex-col" onClick={() => inputRef.current?.focus()}>
+      <header className="flex justify-between items-start mb-20 border-b border-white/5 pb-6">
+        <div>
+          <h1 className="text-3xl font-black tracking-tighter italic text-white uppercase">
+            AETHERSTACK<span className="text-cyan-500">AI</span>
+          </h1>
+          <p className="text-zinc-600 text-[10px] mt-2 tracking-[0.4em] uppercase">
+            Sovereign OS v∞ // Project: aetherstack-os-infinity
+          </p>
+        </div>
+        <FounderProfile name="Founder Yirga" />
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 py-20 border-y border-white/5">
-          <Feature icon={<Shield className="text-cyan-500" />} title="SOVEREIGNTY" desc="Your data. Your silicon." />
-          <Feature icon={<Globe className="text-purple-500" />} title="CONTINUITY" desc="A mind that never forgets." />
-          <Feature icon={<Zap className="text-emerald-500" />} title="SCALE" desc="1,000 nodes at your hand." />
+      <main className="max-w-4xl mx-auto w-full">
+        <div className="flex items-center gap-6 mb-12">
+          <span className="text-cyan-500 text-6xl font-black italic">λ</span>
+          <input 
+            ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleCommand}
+            autoFocus placeholder={isThinking ? "REASONING..." : "ISSUE MASTER DIRECTIVE_"}
+            className="flex-1 bg-transparent border-none outline-none text-4xl font-black text-white caret-cyan-500"
+          />
         </div>
 
-        <button 
-          onClick={() => router.push('/login')}
-          className="group px-12 py-5 bg-white text-black font-black rounded-full hover:bg-cyan-500 transition-all flex items-center gap-4 mx-auto"
-        >
-          ENTER THE NETWORK
-          <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
-        </button>
-      </motion_div>
-
-      <footer className="absolute bottom-10 opacity-20 text-[8px] tracking-[0.5em]">
-        GENESIS ERA // SOVEREIGNTY BY DESIGN
-      </footer>
+        <div className="space-y-4">
+          {swarm.map((s: any, i: number) => (
+            <div key={i} className="p-4 border-l-2 border-cyan-500/20 bg-white/5 rounded-r-xl animate-in fade-in slide-in-from-left-2">
+              <div className="text-[10px] text-cyan-500 font-black mb-1 uppercase">AGENT_{s.agent}</div>
+              <div className="text-lg text-zinc-300 font-bold">"{s.msg}"</div>
+            </div>
+          ))}
+          {swarm.length === 0 && <div className="text-zinc-800 text-xs tracking-widest">AWAITING_NEURAL_INPUT...</div>}
+        </div>
+      </main>
     </div>
   );
-}
-
-function Feature({ icon, title, desc }: any) {
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-center">{icon}</div>
-      <h3 className="text-xs font-black tracking-widest">{title}</h3>
-      <p className="text-[10px] text-zinc-600 leading-tight">{desc}</p>
-    </div>
-  )
 }
