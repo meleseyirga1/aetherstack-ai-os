@@ -2,34 +2,37 @@
 import { useCallback, useEffect, useState } from 'react';
 
 export const useSovereignVoice = () => {
-  const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      // Look for the most authoritative natural voice
-      const preferred = voices.find(v => v.name.includes('Google US English') || v.name.includes('Natural')) || voices[0];
-      setVoice(preferred);
+    const initVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v.length > 0) setVoices(v);
     };
-
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    initVoices();
+    window.speechSynthesis.onvoiceschanged = initVoices;
   }, []);
 
-  const speak = useCallback((text: string, pitch: number = 0.65) => {
+  const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
-    window.speechSynthesis.cancel(); // Clear queue
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (voice) utterance.voice = voice;
+    // 🛡️ RE-PRIME: Cancel everything before starting new transmission
+    window.speechSynthesis.cancel(); 
     
-    utterance.pitch = pitch;
-    utterance.rate = 0.9;
-    utterance.volume = 0.6; // Increased volume
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Select the most authoritative English voice available
+    const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.lang === 'en-US') || voices[0];
+    if (preferredVoice) utterance.voice = preferredVoice;
+    
+    // SOVEREIGN TONE CONSTANTS
+    utterance.pitch = 0.65; 
+    utterance.rate = 0.85;   
+    utterance.volume = 1.0; 
 
     window.speechSynthesis.speak(utterance);
-    console.log("🔊 SOVEREIGN_VOICE: " + text);
-  }, [voice]);
+    console.log("🔊 TRANSMITTING_AUDIO: " + text);
+  }, [voices]);
 
   return { speak };
 };

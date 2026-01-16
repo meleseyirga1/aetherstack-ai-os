@@ -1,44 +1,45 @@
 "use client"
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import { useRouter } from 'next/navigation';
-import FounderProfile from '../components/interface/FounderProfile';
 import { useSovereignVoice } from '../hooks/useSovereignVoice';
+import { Volume2, Zap } from 'lucide-react';
+import FounderProfile from '../components/interface/FounderProfile';
 
-export default function InfinityOS() {
-  const supabase = useMemo(() => createBrowserClient(
+export default function SovereignDashboard() {
+  // Initialize the SSR-compatible Browser Client
+  const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  ), []);
+  );
 
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [input, setInput] = useState('');
   const [swarm, setSwarm] = useState([]);
+  const [voiceActive, setVoiceActive] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { speak } = useSovereignVoice();
 
   useEffect(() => {
-    setMounted(true);
-    const init = async () => {
+    const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) { 
-        setUser(session.user); 
-      } else {
-        router.push('/login');
-      }
+      setSession(session);
     };
-    init();
+    getSession();
+    
+    // Auto-focus the λ Terminal
     const i = setInterval(() => { if(!isThinking) inputRef.current?.focus() }, 1000);
     return () => clearInterval(i);
-  }, [supabase, router, isThinking]);
+  }, [supabase, isThinking]);
+
+  const igniteAudio = () => {
+    setVoiceActive(true);
+    speak("Sovereign voice engine initialized. Welcome back, Founder.");
+  };
 
   const handleCommand = async (e: any) => {
     if (e.key !== 'Enter' || !input) return;
     const cmd = input; setInput(''); setIsThinking(true);
-    speak("AetherStack Mind acknowledging directive.");
     
     try {
       const res = await fetch('/api/alpha/command', {
@@ -46,28 +47,36 @@ export default function InfinityOS() {
         body: JSON.stringify({ command: cmd })
       });
       const data = await res.json();
-      setSwarm((prev: any) => [{ agent: "INFINITY", msg: data.output || "Processed" }, ...prev].slice(0, 5));
+      setSwarm((prev: any) => [{ agent: "ALPHA", msg: data.output || "Processed" }, ...prev].slice(0, 5));
+      if (voiceActive) speak(data.output || "Operational.");
     } catch (err) { console.error("Link Stalled."); }
     setIsThinking(false);
   };
 
-  if (!mounted || !user) return <div className="bg-black min-h-screen" />;
-
   return (
     <div className="min-h-screen bg-black text-white font-mono p-10 flex flex-col" onClick={() => inputRef.current?.focus()}>
-      <header className="flex justify-between items-start mb-20 border-b border-white/5 pb-6">
-        <div>
-          <h1 className="text-3xl font-black tracking-tighter italic text-white uppercase">
-            AETHERSTACK<span className="text-cyan-500">AI</span>
-          </h1>
-          <p className="text-zinc-600 text-[10px] mt-2 tracking-[0.4em] uppercase">
-            Sovereign OS v∞ // Project: aetherstack-os-infinity
-          </p>
+      <header className="flex justify-between items-start mb-20 relative z-50">
+        <div className="flex flex-col gap-4">
+           <h1 className="text-4xl font-black tracking-tighter italic uppercase">
+             AetherStack<span className="text-cyan-500">AI</span>
+           </h1>
+           {!voiceActive ? (
+             <button 
+               onClick={igniteAudio}
+               className="flex items-center gap-3 px-6 py-3 bg-white text-black rounded-full font-black text-[10px] animate-bounce shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:bg-cyan-500 transition-all"
+             >
+               <Zap size={14} fill="black" /> IGNITE NEURAL AUDIO
+             </button>
+           ) : (
+             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-bold uppercase tracking-widest">
+               <Volume2 size={14} /> Acoustic_Handshake_Verified
+             </div>
+           )}
         </div>
         <FounderProfile name="Founder Yirga" />
       </header>
 
-      <main className="max-w-4xl mx-auto w-full">
+      <main className="max-w-4xl mx-auto w-full relative z-50 flex-grow">
         <div className="flex items-center gap-6 mb-12">
           <span className="text-cyan-500 text-6xl font-black italic">λ</span>
           <input 
@@ -79,12 +88,11 @@ export default function InfinityOS() {
 
         <div className="space-y-4">
           {swarm.map((s: any, i: number) => (
-            <div key={i} className="p-4 border-l-2 border-cyan-500/20 bg-white/5 rounded-r-xl animate-in fade-in slide-in-from-left-2">
-              <div className="text-[10px] text-cyan-500 font-black mb-1 uppercase">AGENT_{s.agent}</div>
-              <div className="text-lg text-zinc-300 font-bold">"{s.msg}"</div>
+            <div key={i} className="p-4 border-l-2 border-cyan-500/20 bg-white/5 rounded-r-xl animate-in fade-in">
+              <div className="text-[10px] text-cyan-500 font-black mb-1 uppercase tracking-widest">{s.agent}</div>
+              <div className="text-lg text-zinc-300 font-bold">{s.msg}</div>
             </div>
           ))}
-          {swarm.length === 0 && <div className="text-zinc-800 text-xs tracking-widest">AWAITING_NEURAL_INPUT...</div>}
         </div>
       </main>
     </div>
