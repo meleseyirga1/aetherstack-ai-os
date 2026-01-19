@@ -8,27 +8,23 @@ export async function POST(req: Request) {
   const ssh = new NodeSSH();
   
   try {
-    // 🛡️ SENTINEL HANDSHAKE
-    // We prioritize the Private Key. If missing, it falls back to the environment.
+    // 🛡️ BASE64 DECODING LOGIC
+    const encodedKey = process.env.VPS_PRIVATE_KEY || '';
+    const decodedKey = Buffer.from(encodedKey, 'base64').toString('utf-8');
+
     await ssh.connect({
       host: process.env.VPS_IP || '143.110.195.79',
       username: 'root',
-      privateKey: process.env.VPS_PRIVATE_KEY, // The Scepter
+      privateKey: decodedKey,
       readyTimeout: 20000
     });
     
     const result = await ssh.execCommand(`python3 /opt/aetherstack/scripts/alpha_core.py "${command}"`);
-    
-    // Parse the Brain's response
-    const output = JSON.parse(result.stdout);
-    return NextResponse.json(output);
+    return NextResponse.json(JSON.parse(result.stdout));
 
   } catch (e: any) {
     console.error("🔒 SECURITY_BLOCK: ", e.message);
-    return NextResponse.json({ 
-      error: 'LINK_STALLED', 
-      msg: 'Sentinel rejected the handshake. Verify Private Key.' 
-    }, { status: 500 });
+    return NextResponse.json({ error: 'LINK_STALLED', msg: e.message }, { status: 500 });
   } finally {
     ssh.dispose();
   }
